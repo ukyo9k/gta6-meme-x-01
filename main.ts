@@ -24,12 +24,27 @@ async function main(): Promise<void> {
     throw new Error("POST.json must be a JSON object");
   }
   const url = (parsed as Record<string, unknown>).url;
-  if (typeof url !== "string" || !url.startsWith("https://x.com/")) {
-    throw new Error("POST.json must carry a url string for an x.com post");
+  // The post address must be the full status URL shape, not just any
+  // x.com link: https://x.com/<handle>/status/<digits>.
+  if (
+    typeof url !== "string" ||
+    !/^https:\/\/x\.com\/[A-Za-z0-9_]+\/status\/[0-9]+$/.test(url)
+  ) {
+    throw new Error(
+      "POST.json url must look like https://x.com/<handle>/status/<digits>",
+    );
   }
 
   await mkdir(OUT_DIR, { recursive: true });
-  await writeFile(join(OUT_DIR, "POST.json"), raw, "utf8");
+  const targetPath = join(OUT_DIR, "POST.json");
+  await writeFile(targetPath, raw, "utf8");
+
+  // Confirm the copy landed byte-identical before reporting success, so a
+  // partial or truncated write can never be mistaken for a valid output.
+  const written = await readFile(targetPath, "utf8");
+  if (written !== raw) {
+    throw new Error("output POST.json does not match the source bytes");
+  }
 }
 
 main().catch((error: unknown) => {
